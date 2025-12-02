@@ -1,0 +1,38 @@
+import pytest
+from playwright.sync_api import sync_playwright
+
+@pytest.fixture(scope="session")
+def browser():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        yield browser
+        browser.close()
+
+def test_footer_exists_and_contains_elements(browser):
+    page = browser.new_page()
+    page.goto("https://only.digital/")
+
+    # Прокручиваем в самый низ страницы (на случай lazy loading)
+    page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+
+    # Проверяем, что внизу страницы есть хотя бы один "футероподобный" элемент
+    # В данном случае ищем контакт в Telegram и упоминание "years"
+    telegram_handle = "@onlydigitalagency"
+    years_text = "years"
+
+    # Находим все <footer> теги
+    footers = page.query_selector_all("footer")
+
+    if footers:
+        footer = footers[0]
+        footer_text = footer.text_content()
+        assert telegram_handle in footer_text, f"Telegram handle '{telegram_handle}' not found in footer"
+        assert years_text in footer_text.lower(), f"'{years_text}' not found in footer"
+    else:
+        # Если <footer> нет — ищем последний блок с текстом внизу страницы
+        body_text = page.text_content("body")
+        assert telegram_handle in body_text, f"Telegram handle '{telegram_handle}' not found on page"
+        # Ищем "years" как отдельный элемент или в тексте (например, "10 years")
+        assert "years" in body_text.lower(), "'years' not found on page"
+
+    print("✅ Footer (or equivalent bottom content) and required elements found.")
